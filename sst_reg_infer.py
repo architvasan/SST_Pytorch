@@ -25,14 +25,11 @@ from itertools import chain, repeat, islice
 from torch.utils.data import DataLoader, TensorDataset
 from pathlib import Path
 import warnings
-from torcheval.metrics.functional import multiclass_f1_score
-from torcheval.metrics import BinaryAccuracy
 warnings.filterwarnings("ignore")
 from argparse import ArgumentParser, SUPPRESS
 from pathlib import Path
 import json
 from sst_reg import *
-from torcheval.metrics import R2Score
 from tqdm import tqdm
 
 '''
@@ -51,38 +48,27 @@ def pad(iterable, size, padding=None):
 def tokenize_function(examples, tokenizer, ntoken) :
     return np.array(list(pad(tokenizer(examples)['input_ids'], ntoken, 0)))
 
-def dataload_presplit(traindat, valdat, smilescol, labelcol, batch, ntoken, tokenizer):
+def dataloader_inference(data, smilescol, batch, ntoken, tokenizer):
     tqdm.pandas()
-    smiles_df_train = pd.DataFrame(data = {'text': traindat[smilescol], 'labels': traindat[labelcol]})
-    smiles_df_val = pd.DataFrame(data = {'text': valdat[smilescol], 'labels': valdat[labelcol]})
-
-    smiles_df_train['text'] = smiles_df_train['text'].progress_apply(lambda x: tokenize_function(x, tokenizer=tokenizer, ntoken=ntoken))
-    target_train = smiles_df_train['labels'].values
-    features_train = np.stack([tok_dat for tok_dat in smiles_df_train['text']])
-    smiles_df_val['text'] = smiles_df_val['text'].progress_apply(lambda x: tokenize_function(x, tokenizer=tokenizer, ntoken=ntoken))
-    target_val = smiles_df_val['labels'].values
-    features_val = np.stack([tok_dat for tok_dat in smiles_df_val['text']])
-
-    feature_tensor_train = torch.tensor(features_train)
-    label_tensor_train = torch.tensor(smiles_df_train['labels'])
-    feature_tensor_val = torch.tensor(features_val)
-    label_tensor_val = torch.tensor(smiles_df_val['labels'])
-
-    train_dataset = TensorDataset(feature_tensor_train, label_tensor_train)
-    val_dataset = TensorDataset(feature_tensor_val, label_tensor_val)
-    
-    train_dataloader = DataLoader(train_dataset, batch_size=batch, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=2048, shuffle=False)
-    return train_dataloader, val_dataloader, val_dataset
+    smiles_df = pd.DataFrame(data = {'text': dat[smilescol]})
+    smiles_df['text'] = smiles_df['text'].progress_apply(lambda x: tokenize_function(x, tokenizer=tokenizer, ntoken=ntoken))
+    features_tensor = torch.tensor(np.stack([tok_dat for tok_dat in smiles_df_train['text']]))
+    dataloader = DataLoader(features_tensor, batch_size=batch, shuffle=False)
+    return dataloader
 
 #############################################################
 parser = ArgumentParser()#add_help=False)
+
 parser.add_argument(
-    "-t", "--traindata", type=Path, required=True, help="Input data for training"
+    "-m", "--modelwghts", type=Path, required=True, help="Path for model weights"
 )
 
 parser.add_argument(
-    "-v", "--valdata", type=Path, required=True, help="Input data for validation"
+    "-L", "--location", type=Path, required=True, help="Location for compound data"
+)
+
+parser.add_argument(
+    "-D", "--datasets", type=list, required=True, help="Datasets to screen"
 )
 
 parser.add_argument(
@@ -90,23 +76,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-l", "--labelcol", type=str, required=True, help="Column for label"
-)
-
-parser.add_argument(
     "-c", "--confmod", type=Path, required=True, help="config file for model"
 )
 
 parser.add_argument(
-    "-e", "--epochs", type=int, required=True, help="number of epochs"
-)
-
-parser.add_argument(
     "-b", "--batch", type=int, required=True, help="batch size"
-)
-
-parser.add_argument(
-    "-L", "--lr", type=float, required=False, default=1e-5, help="batch size"
 )
 
 args = parser.parse_args()
@@ -115,68 +89,29 @@ with open(args.confmod, 'r') as f:
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-'''
-Single task learning tests
-'''
-traindat = pd.read_csv(args.traindata)
-valdat = pd.read_csv(args.valdata)
-base = 'training'
+wghts = torch.load(args.modelwghts)
+if True:
+    model = TransformerModel(ntoken=config['ntoken'], d_model=config['d_model'], nhead=config['nhead'], d_hid=config['d_hid'],
+                     nlayers=config['nlayers'], dropout= config['dropout'], device=device)
+    
+    model.load_state_dict(wghts['model_state_dict'])
 
-train_loader, val_loader, val_data = dataload_presplit(traindat, valdat, args.smilescol, args.labelcol, args.batch, config['ntoken'])
-
-model = TransformerModel(ntoken=config['ntoken'], d_model=config['d_model'], nhead=config['nhead'], d_hid=config['d_hid'],
-                 nlayers=config['nlayers'], dropout= config['dropout'], device=device)
 model = model.to(device)
+# Ensure the model is in evaluation mode
+model.eval()
 
-# define optimizer. Specify the parameters of the model to be trainable. Learning rate of .001
-optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
-loss_fn = nn.MSELoss()
+All_Files = np.array([])
+All_Dirs = np.array([])
+for dirs in args.datasets:
+    list_dir_files = np.array(sorted(os.listdir(f'{DATA_FILE_PATH}/{dirs}')))
+    All_Files = np.concatenate((All_Files, list_dir_files))
+    dir_enumerate = np.array([dirs for i in range(len(list_dir_files))]) 
+    All_Dirs = np.concatenate((All_Dirs, dir_enumerate))
 
-# some extra variables to track performance during training
-r2_history = []
-r2_vals = []
-trainstep = 0
-running_loss = 0.
-metric = R2Score().to(device)
-for i in tqdm(range(args.epochs)):
-    for j, (batch_X, batch_y) in enumerate(train_loader):
-        preds = model(batch_X.to(device)).flatten()
-        #print(batch_y)
-        loss = loss_fn(preds.flatten(), batch_y.float().to(device))
-        print(preds.shape)
-        print(batch_y.shape)
-        print(loss)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        del(preds)
-
+for fil, dirs in zip(All_Files, All_Dirs):
+    dataloader = dataloader_inference(data, smilescol, batch, ntoken, tokenizer)
     with torch.no_grad():
-        for k, (batch_Xt, batch_yt) in enumerate(val_loader):
-            #print(batch_Xt)
-            #model.to(device)
-            y_hat = model(batch_Xt.to(device)).flatten()
-            y_grnd = batch_yt.float().to(device)
-            #print(y_hat)
-            #print(y_grnd)
-            metric.update(y_hat, y_grnd)
-            r2_k = metric.compute()
-            r2_k = r2_k.cpu().detach().numpy()
-            print(r2_k)
-            r2_history.append({'epoch' : i, 'minibatch' : k, 'trainstep' : trainstep,
-                                      'task' : 'tox', 'binacc' : r2_k})
-            r2_vals.append(r2_k)
-            trainstep += 1
-        
-        if r2_k == np.max(r2_vals):
-            print(r2_history)
-            torch.save({
-                'epoch': i,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
-                }, f'models/{base}.pt')
+        for j, batch_X in enumerate(dataloader):
+            preds = model(batch_X.to(device)).flatten()
 
-r2_df = pd.DataFrame(r2_history)
-r2_df.to_csv(f'r2_{base}.csv')
 
