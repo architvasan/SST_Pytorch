@@ -12,7 +12,6 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import f1_score, classification_report
 import torch
 from collections import OrderedDict
-
 from torch.utils.data import Dataset, DataLoader, dataset
 import torch.utils.data as data_utils
 import matplotlib.pyplot as plt
@@ -34,6 +33,11 @@ from pathlib import Path
 import json
 from sst_reg import *
 from tqdm import tqdm
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
 
 '''
 Initialize tokenizer
@@ -118,8 +122,11 @@ for dirs in args.datasets:
     dir_enumerate = np.array([dirs for i in range(len(list_dir_files))]) 
     All_Dirs = np.concatenate((All_Dirs, dir_enumerate))
 
+split_files = np.array_split(All_Files, size)[rank]
+split_dirs = np.array_split(All_Dirs, size)[rank]
+
 cutoff=9
-for fil, dirs in tqdm(zip(All_Files, All_Dirs)):
+for fil, dirs in tqdm(zip(split_files, split_dirs)):
     data = pd.read_csv(f'{args.location}/{dirs}/{fil}')
     dataloader = dataloader_inference(data, args.smilescol, args.batch, config['ntoken'], tokenizer)
     preds_fil = []

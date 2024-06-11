@@ -2,5 +2,5 @@
     "d_model": 256,
     "nhead": 16,
     "d_hid": 256,
-    "nlayers": 8,
+    "nlayers": 4,
     "dropout": 0.2}
