@@ -62,21 +62,21 @@ class TransformerModel(nn.Module):
         encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
         
         self.transformer_encoder1 = TransformerEncoder(encoder_layers, nlayers)
-        self.transformer_encoder2 = TransformerEncoder(encoder_layers, nlayers)
+        #self.transformer_encoder2 = TransformerEncoder(encoder_layers, nlayers)
         self.layer_norm = nn.LayerNorm(d_model) 
         self.embedding = nn.Embedding(3132, d_model)
         self.d_model = d_model
 
         self.dropout1 = nn.Dropout(0.2)
-        self.linear1 = nn.Linear(self.d_model*self.ntoken, 2048)
+        self.linear1 = nn.Linear(self.d_model*self.ntoken, 1024)
         self.act1 = nn.ReLU()
 
         self.dropout2 = nn.Dropout(0.2)
-        self.linear2 = nn.Linear(2048, 1024)
+        self.linear2 = nn.Linear(1024,512)
         self.act2 = nn.ReLU()
 
         self.dropout3 = nn.Dropout(0.2)
-        self.linear3 = nn.Linear(1024, 256)
+        self.linear3 = nn.Linear(512,256)
         self.act3 = nn.ReLU()
 
         self.dropout4 = nn.Dropout(0.2)
@@ -124,7 +124,7 @@ class TransformerModel(nn.Module):
             """
             src_mask = nn.Transformer.generate_square_subsequent_mask(len(src)).to(self.device)
         output = self.transformer_encoder1(src, src_mask)
-        output = self.transformer_encoder2(output)
+        #output = self.transformer_encoder2(output)
         #output = self.layer_norm(output)
         output = self.dropout1(output)
         output = torch.reshape(output, (len(output), self.d_model*self.ntoken))# (len(output),len(output[0])*len(output[0][0])))
