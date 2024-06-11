@@ -48,35 +48,18 @@ def pad_infinite(iterable, padding=None):
 def pad(iterable, size, padding=None):
    return islice(pad_infinite(iterable, padding), size)
 
-def tokenize_function(examples, ntoken) :
+def tokenize_function(examples, tokenizer, ntoken) :
     return np.array(list(pad(tokenizer(examples)['input_ids'], ntoken, 0)))
 
-def training_data(raw_data):
-    smiles_data_frame = pd.DataFrame(data = {'text': raw_data['Canonical SMILES'], 'labels': raw_data['Toxicity Value']})
-    smiles_data_frame['text'] = smiles_data_frame['text'].apply(lambda x: tokenize_function(x, ntoken=ntoken))#map(tokenize_function)#, batched=True)
-    target = smiles_data_frame['labels'].values
-    features = np.stack([tok_dat for tok_dat in smiles_data_frame['text']])
-    feature_tensor = torch.tensor(features)
-    label_tensor = torch.tensor(smiles_data_frame['labels'])
-    dataset = TensorDataset(feature_tensor, label_tensor)
-    train_size = int(0.9 * len(dataset))
-    test_size = int(len(dataset) - train_size)
-
-    training_data, test_data = torch.utils.data.random_split(dataset, [train_size, test_size])
-    train_dataloader = DataLoader(training_data, batch_size=128, shuffle=True)
-    test_dataloader = DataLoader(test_data, batch_size=128, shuffle=False)
-    return train_dataloader, test_dataloader, test_data
-
-
-def dataload_presplit(traindat, valdat, smilescol, labelcol, batch, ntoken):
+def dataload_presplit(traindat, valdat, smilescol, labelcol, batch, ntoken, tokenizer):
     tqdm.pandas()
     smiles_df_train = pd.DataFrame(data = {'text': traindat[smilescol], 'labels': traindat[labelcol]})
     smiles_df_val = pd.DataFrame(data = {'text': valdat[smilescol], 'labels': valdat[labelcol]})
 
-    smiles_df_train['text'] = smiles_df_train['text'].progress_apply(lambda x: tokenize_function(x, ntoken=ntoken))
+    smiles_df_train['text'] = smiles_df_train['text'].progress_apply(lambda x: tokenize_function(x, tokenizer=tokenizer, ntoken=ntoken))
     target_train = smiles_df_train['labels'].values
     features_train = np.stack([tok_dat for tok_dat in smiles_df_train['text']])
-    smiles_df_val['text'] = smiles_df_val['text'].progress_apply(lambda x: tokenize_function(x, ntoken=ntoken))
+    smiles_df_val['text'] = smiles_df_val['text'].progress_apply(lambda x: tokenize_function(x, tokenizer=tokenizer, ntoken=ntoken))
     target_val = smiles_df_val['labels'].values
     features_val = np.stack([tok_dat for tok_dat in smiles_df_val['text']])
 
