@@ -148,6 +148,14 @@ model = TransformerModel(ntoken=config['ntoken'], d_model=config['d_model'], nhe
                  nlayers=config['nlayers'], dropout= config['dropout'], device=device)
 model = model.to(device)
 
+with torch.no_grad():
+    
+    param_size = 0
+    for param in model.parameters():
+        param_size += param.nelement() * param.element_size()
+    
+    print(f"model size is {param_size}")
+
 # define optimizer. Specify the parameters of the model to be trainable. Learning rate of .001
 optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
 loss_fn = nn.MSELoss()
@@ -157,7 +165,7 @@ r2_history = []
 r2_vals = []
 trainstep = 0
 running_loss = 0.
-metric = R2Score().to(device)
+#metric = R2Score().to(device)
 
 wandb.init()
 
@@ -175,18 +183,23 @@ for i in tqdm(range(args.epochs)):
         optimizer.step()
         del(preds)
         wandb.log({"loss": loss})
+    y_hat_total = []
+    y_grnd_total = []
     with torch.no_grad():
         for k, (batch_Xt, batch_yt) in enumerate(val_loader):
             y_hat = model(batch_Xt.to(device)).flatten()
             y_grnd = batch_yt.float().to(device)
-            metric.update(y_hat, y_grnd)
-            r2_k = metric.compute()
-            r2_k = r2_k.cpu().detach().numpy()
-            r2_history.append({'epoch' : i, 'minibatch' : k, 'trainstep' : trainstep,
+            y_hat_total.extend(y_hat.cpu().detach().numpy())
+            y_grnd_total.extend(y_grnd.cpu().detach().numpy())
+        r2_k = sklearn.metrics.r2_score(y_grnd_total, y_hat_total)
+            #metric.update(y_hat, y_grnd)
+            #r2_k = metric.compute()
+            #r2_k = r2_k.cpu().detach().numpy()
+        r2_history.append({'epoch' : i, 'minibatch' : k, 'trainstep' : trainstep,
                                       'task' : 'tox', 'binacc' : r2_k})
-            r2_vals.append(r2_k)
-            trainstep += 1
-            wandb.log({"val-r2": r2_k})
+        r2_vals.append(r2_k)
+        trainstep += 1
+        wandb.log({"val-r2": r2_k})
         if r2_k == np.max(r2_vals):
             torch.save({
                 'epoch': i,

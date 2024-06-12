@@ -118,12 +118,13 @@ class TransformerModel(nn.Module):
         """
         src = self.embedding(src)* math.sqrt(self.d_model)
         src = self.pos_encoder(src)
-        if src_mask is None:
-            """Generate a square causal mask for the sequence. The masked positions are filled with float('-inf').
-            Unmasked positions are filled with float(0.0).
-            """
-            src_mask = nn.Transformer.generate_square_subsequent_mask(len(src)).to(self.device)
-        output = self.transformer_encoder1(src, src_mask)
+        if False:
+            if src_mask is None:
+                """Generate a square causal mask for the sequence. The masked positions are filled with float('-inf').
+                Unmasked positions are filled with float(0.0).
+                """
+                src_mask = nn.Transformer.generate_square_subsequent_mask(len(src)).to(self.device)
+        output = self.transformer_encoder1(src)#, src_mask=None)
         #output = self.transformer_encoder2(output)
         #output = self.layer_norm(output)
         output = self.dropout1(output)
