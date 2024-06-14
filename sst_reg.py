@@ -59,7 +59,7 @@ class TransformerModel(nn.Module):
         self.pos_encoder = PositionalEncoding(d_model, dropout)
         self.ntoken = ntoken
         self.d_model = d_model
-        encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
+        encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout, batch_first=True)
         
         self.transformer_encoder1 = TransformerEncoder(encoder_layers, nlayers)
         #self.transformer_encoder2 = TransformerEncoder(encoder_layers, nlayers)

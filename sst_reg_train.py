@@ -139,9 +139,14 @@ Single task learning tests
 '''
 traindat = pd.read_csv(args.traindata)
 valdat = pd.read_csv(args.valdata)
+traindat['label_scaled'] = (traindat[args.labelcol] - traindat[args.labelcol].min()) / (traindat[args.labelcol].max() - traindat[args.labelcol].min())
+
+valdat['label_scaled'] = (valdat[args.labelcol] - valdat[args.labelcol].min()) / (valdat[args.labelcol].max() - valdat[args.labelcol].min())
+
+
 base = 'training'
 
-train_loader, val_loader, val_data = dataload_presplit(traindat, valdat, args.smilescol, args.labelcol, args.batch, config['ntoken'])
+train_loader, val_loader, val_data = dataload_presplit(traindat, valdat, args.smilescol, 'label_scaled', args.batch, config['ntoken'])
 
 
 model = TransformerModel(ntoken=config['ntoken'], d_model=config['d_model'], nhead=config['nhead'], d_hid=config['d_hid'],
