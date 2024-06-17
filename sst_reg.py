@@ -59,6 +59,7 @@ class TransformerModel(nn.Module):
         self.pos_encoder = PositionalEncoding(d_model, dropout)
         self.ntoken = ntoken
         self.d_model = d_model
+        self.dropout = dropout
         encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout, batch_first=True)
         
         self.transformer_encoder1 = TransformerEncoder(encoder_layers, nlayers)
@@ -67,30 +68,30 @@ class TransformerModel(nn.Module):
         self.embedding = nn.Embedding(3132, d_model)
         self.d_model = d_model
 
-        self.dropout1 = nn.Dropout(0.2)
+        self.dropout1 = nn.Dropout(self.dropout)
         self.linear1 = nn.Linear(self.d_model*self.ntoken, 1024)
-        self.act1 = nn.ReLU()
+        self.act1 = nn.GELU()
 
-        self.dropout2 = nn.Dropout(0.2)
+        self.dropout2 = nn.Dropout(self.dropout)
         self.linear2 = nn.Linear(1024,512)
-        self.act2 = nn.ReLU()
+        self.act2 = nn.GELU()
 
-        self.dropout3 = nn.Dropout(0.2)
+        self.dropout3 = nn.Dropout(self.dropout)
         self.linear3 = nn.Linear(512,256)
-        self.act3 = nn.ReLU()
+        self.act3 = nn.GELU()
 
-        self.dropout4 = nn.Dropout(0.2)
+        self.dropout4 = nn.Dropout(self.dropout)
         self.linear4 = nn.Linear(256, 64)
-        self.act4 = nn.ReLU()
+        self.act4 = nn.GELU()
         #self.act4 = torch.sigmoid()
 
-        self.dropout5 = nn.Dropout(0.2)
+        self.dropout5 = nn.Dropout(self.dropout)
         self.linear5 = nn.Linear(64, 16)
-        self.act5 = nn.ReLU()
+        self.act5 = nn.GELU()
 
         self.dropout6 = nn.Dropout(0.2)
         self.linear6 = nn.Linear(16, 1)
-        self.act6 = nn.ReLU()
+        self.act6 = nn.GELU()
 
         self.init_weights()
 

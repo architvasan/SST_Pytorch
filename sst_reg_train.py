@@ -61,7 +61,7 @@ def training_data(raw_data):
     feature_tensor = torch.tensor(features)
     label_tensor = torch.tensor(smiles_data_frame['labels'])
     dataset = TensorDataset(feature_tensor, label_tensor)
-    train_size = int(0.9 * len(dataset))
+    train_size = int(0.8 * len(dataset))
     test_size = int(len(dataset) - train_size)
 
     training_data, test_data = torch.utils.data.random_split(dataset, [train_size, test_size])
@@ -77,10 +77,10 @@ def dataload_presplit(traindat, valdat, smilescol, labelcol, batch, ntoken):
 
     smiles_df_train['text'] = smiles_df_train['text'].progress_apply(lambda x: tokenize_function(x, ntoken=ntoken))
     target_train = smiles_df_train['labels'].values
-    features_train = np.stack([tok_dat for tok_dat in smiles_df_train['text']])
+    features_train = [tok_dat for tok_dat in smiles_df_train['text']]#np.stack([tok_dat for tok_dat in smiles_df_train['text']])
     smiles_df_val['text'] = smiles_df_val['text'].progress_apply(lambda x: tokenize_function(x, ntoken=ntoken))
     target_val = smiles_df_val['labels'].values
-    features_val = np.stack([tok_dat for tok_dat in smiles_df_val['text']])
+    features_val = [tok_dat for tok_dat in smiles_df_val['text']]#np.stack([tok_dat for tok_dat in smiles_df_val['text']])
 
     feature_tensor_train = torch.tensor(features_train)
     label_tensor_train = torch.tensor(smiles_df_train['labels'])
@@ -91,7 +91,7 @@ def dataload_presplit(traindat, valdat, smilescol, labelcol, batch, ntoken):
     val_dataset = TensorDataset(feature_tensor_val, label_tensor_val)
     
     train_dataloader = DataLoader(train_dataset, batch_size=batch, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=2048, shuffle=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch, shuffle=False)
     return train_dataloader, val_dataloader, val_dataset
 
 #############################################################
@@ -170,7 +170,7 @@ r2_history = []
 r2_vals = []
 trainstep = 0
 running_loss = 0.
-#metric = R2Score().to(device)
+metric = R2Score().to(device)
 
 wandb.init()
 
@@ -196,16 +196,18 @@ for i in tqdm(range(args.epochs)):
             y_grnd = batch_yt.float().to(device)
             y_hat_total.extend(y_hat.cpu().detach().numpy())
             y_grnd_total.extend(y_grnd.cpu().detach().numpy())
-        r2_k = sklearn.metrics.r2_score(y_grnd_total, y_hat_total)
-            #metric.update(y_hat, y_grnd)
-            #r2_k = metric.compute()
+        #print(y_hat_total)
+        #print(y_grnd_total)
+        #r2_k = sklearn.metrics.r2_score(y_grnd_total, y_hat_total)
+            metric.update(y_hat, y_grnd)
+            r2_k = metric.compute()
             #r2_k = r2_k.cpu().detach().numpy()
         r2_history.append({'epoch' : i, 'minibatch' : k, 'trainstep' : trainstep,
                                       'task' : 'tox', 'binacc' : r2_k})
-        r2_vals.append(r2_k)
+        r2_vals.append(r2_k.cpu().detach().numpy())
         trainstep += 1
         wandb.log({"val-r2": r2_k})
-        if r2_k == np.max(r2_vals):
+        if r2_k.cpu().detach().numpy() == np.max(r2_vals):
             torch.save({
                 'epoch': i,
                 'model_state_dict': model.state_dict(),
